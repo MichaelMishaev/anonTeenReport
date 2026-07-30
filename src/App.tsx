@@ -32,10 +32,7 @@ import {
   type SurveyDraft,
   type VisitFrequency,
 } from "./domain/survey";
-import {
-  SubmissionNotConfiguredError,
-  submitFeedback,
-} from "./services/feedback";
+import { submitFeedback } from "./services/feedback";
 
 const STORAGE_KEY = "anon-teen-city-feedback-draft";
 
@@ -355,28 +352,15 @@ export function App() {
       sessionStorage.removeItem(STORAGE_KEY);
       setScreen("success");
     } catch (caughtError) {
-      if (caughtError instanceof SubmissionNotConfiguredError) {
-        setSubmitError(
-          <div className="feedback-notice feedback-notice--info" role="alert">
-            <AlertCircle size={20} aria-hidden="true" />
-            <span>
-              <strong>השליחה עדיין לא מחוברת.</strong>
-              הטופס מוכן, אבל Supabase עדיין לא הוגדר. התשובות נשארו כאן ולא
-              נשלחו.
-            </span>
-          </div>,
-        );
-      } else {
-        setSubmitError(
-          <div className="feedback-notice feedback-notice--error" role="alert">
-            <AlertCircle size={20} aria-hidden="true" />
-            <span>
-              <strong>לא הצלחנו לשלוח כרגע.</strong>
-              התשובות עדיין כאן. אפשר לבדוק את החיבור ולנסות שוב.
-            </span>
-          </div>,
-        );
-      }
+      setSubmitError(
+        <div className="feedback-notice feedback-notice--error" role="alert">
+          <AlertCircle size={20} aria-hidden="true" />
+          <span>
+            <strong>לא הצלחנו לשלוח כרגע.</strong>
+            התשובות עדיין כאן. אפשר לבדוק את החיבור ולנסות שוב.
+          </span>
+        </div>,
+      );
     } finally {
       setIsSubmitting(false);
     }

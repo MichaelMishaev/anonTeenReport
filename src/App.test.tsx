@@ -75,7 +75,7 @@ describe("anonymous youth feedback flow", () => {
     ).toHaveValue("");
   });
 
-  it("never shows success when Supabase is not configured", async () => {
+  it("never shows success when the submission API is unavailable", async () => {
     const user = await beginSurvey();
 
     await user.click(screen.getByRole("radio", { name: "פעם אחת" }));
@@ -97,7 +97,7 @@ describe("anonymous youth feedback flow", () => {
     await user.click(screen.getByRole("button", { name: "לשלוח" }));
 
     expect(
-      await screen.findByText("השליחה עדיין לא מחוברת."),
+      await screen.findByText("לא הצלחנו לשלוח כרגע."),
     ).toBeInTheDocument();
     expect(
       screen.queryByRole("heading", { name: "תודה על השיתוף" }),
