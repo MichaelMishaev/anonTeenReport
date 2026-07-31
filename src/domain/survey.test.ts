@@ -11,18 +11,69 @@ import {
   containsOffensiveLanguage,
   findOffensiveWord,
 } from "./offensiveLanguage.js";
+import {
+  HEBREW_OFFENSIVE_VOCABULARY,
+  LATIN_OFFENSIVE_VOCABULARY,
+} from "./hebrewOffensiveVocabulary.js";
 
 describe("offensive language detection", () => {
-  it("detects direct and spaced-out Hebrew slurs", () => {
-    expect(containsOffensiveLanguage("את זונה")).toBe(true);
-    expect(containsOffensiveLanguage("את ז ו נ ה")).toBe(true);
-    expect(findOffensiveWord("הוא מפגר")).toBe("מפגר");
+  it.each([
+    ["זין ענק", "זין"],
+    ["את זונה", "זונה"],
+    ["הוא מפגר", "מפגר"],
+    ["יא מטומטם", "מטומטם"],
+    ["חתיכת חרא", "חרא"],
+    ["לך תזדיין", "תזדיין"],
+    ["כוס אמא שלך", "כוס אמא"],
+    ["סוקה בליאט", "בליאט"],
+    ["יא הומו", "יא הומו"],
+    ["הלוואי שתמות", "הלוואי שתמות"],
+    ["you are an asshole", "asshole"],
+    ["go kill yourself", "go kill yourself"],
+  ])("detects curated abusive text: %s", (text, expectedWord) => {
+    expect(findOffensiveWord(text)).toBe(expectedWord);
   });
 
-  it("does not match offensive fragments inside innocent words", () => {
-    expect(containsOffensiveLanguage("תזונה בריאה חשובה")).toBe(false);
-    expect(containsOffensiveLanguage("תשלום מזונות")).toBe(false);
-    expect(containsOffensiveLanguage("שלום לכולם")).toBe(false);
+  it("detects common attempts to evade the filter", () => {
+    expect(findOffensiveWord("זין ענק")).toBe("זין");
+    expect(containsOffensiveLanguage("ז י ן ענק")).toBe(true);
+    expect(containsOffensiveLanguage("את ז ו נ ה")).toBe(true);
+    expect(containsOffensiveLanguage("ז.י.ן ענק")).toBe(true);
+    expect(containsOffensiveLanguage("ז\u200bין ענק")).toBe(true);
+    expect(containsOffensiveLanguage("מְפַגֵּר")).toBe(true);
+    expect(containsOffensiveLanguage("מטומטםםם")).toBe(true);
+    expect(containsOffensiveLanguage("f.u.c.k you")).toBe(true);
+  });
+
+  it("keeps the curated vocabulary large, unique, and fully matchable", () => {
+    const vocabulary = [
+      ...Object.values(HEBREW_OFFENSIVE_VOCABULARY).flat(),
+      ...LATIN_OFFENSIVE_VOCABULARY,
+    ];
+
+    expect(vocabulary.length).toBeGreaterThanOrEqual(350);
+    expect(new Set(vocabulary).size).toBe(vocabulary.length);
+    for (const entry of vocabulary) {
+      expect(containsOffensiveLanguage(entry), entry).toBe(true);
+    }
+  });
+
+  it.each([
+    "אני מאזין למוזיקה",
+    "מערכת להזנת נתונים",
+    "תזונה בריאה חשובה",
+    "תשלום מזונות",
+    "שלום לכולם",
+    "כוס מים בבקשה",
+    "יש לי כלב חמוד",
+    "קיבלתי אפס תקלות",
+    "הוא הומו ומרגיש בטוח כאן",
+    "היא לסבית ומרגישה בטוחה כאן",
+    "אני אוטיסט וצריך פחות רעש",
+    "class starts at noon",
+    "Dick is an English first name",
+  ])("does not match innocent or neutral text: %s", (text) => {
+    expect(containsOffensiveLanguage(text)).toBe(false);
   });
 });
 
@@ -66,6 +117,17 @@ describe("step validation", () => {
 
   it("allows the final optional idea field to be empty", () => {
     expect(validateStep("idea", INITIAL_DRAFT)).toBeNull();
+  });
+
+  it("blocks the reported offensive idea before submission", () => {
+    const draft: SurveyDraft = {
+      ...INITIAL_DRAFT,
+      ideaOrChange: "זין ענק",
+    };
+
+    expect(validateStep("idea", draft)).toBe(
+      "זיהינו מילה שעלולה לפגוע. צריך לנסח את התשובה בדרך מכבדת יותר.",
+    );
   });
 
   it("blocks offensive language in regular free-text answers", () => {
