@@ -957,22 +957,23 @@ export function App() {
   if (screen === "success") {
     return (
       <div className="screen-frame terminal-screen">
-        <main className="terminal-content">
-          <div
-            className="terminal-icon terminal-icon--success"
-            aria-hidden="true"
-          >
-            <CheckCircle2 size={34} />
+        <main className="terminal-content terminal-content--success">
+          <div className="success-hero">
+            <div
+              className="terminal-icon terminal-icon--success"
+              aria-hidden="true"
+            >
+              <CheckCircle2 size={34} />
+            </div>
+            <img
+              className="success-illustration"
+              src="/youth-city-activities.png"
+              alt=""
+            />
+            <h1 data-screen-heading tabIndex={-1}>
+              תודה על השיתוף
+            </h1>
           </div>
-          <img
-            className="success-illustration"
-            src="/youth-city-activities.png"
-            alt=""
-          />
-          <h1 data-screen-heading tabIndex={-1}>
-            תודה על השיתוף
-          </h1>
-          <p>המשוב נשלח בלי השם שלך ויעזור לשפר את עיר הנוער.</p>
           <section
             className="share-invitation"
             aria-labelledby="share-invitation-title"

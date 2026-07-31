@@ -175,6 +175,9 @@ describe("anonymous youth feedback flow", () => {
       await screen.findByRole("heading", { name: "תודה על השיתוף" }),
     ).toBeInTheDocument();
     expect(
+      screen.queryByText("המשוב נשלח בלי השם שלך ויעזור לשפר את עיר הנוער."),
+    ).not.toBeInTheDocument();
+    expect(
       screen.getByRole("heading", {
         name: "יש חברים שגם היו בעיר הנוער?",
       }),
