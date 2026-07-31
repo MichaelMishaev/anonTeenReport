@@ -765,6 +765,11 @@ export function App() {
           >
             <CheckCircle2 size={34} />
           </div>
+          <img
+            className="success-illustration"
+            src="/youth-city-activities.png"
+            alt=""
+          />
           <h1 data-screen-heading tabIndex={-1}>
             תודה על השיתוף
           </h1>

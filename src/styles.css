@@ -810,6 +810,14 @@ button:disabled {
   color: #027a48;
 }
 
+.success-illustration {
+  width: clamp(148px, 42vw, 220px);
+  height: auto;
+  margin-top: 20px;
+  filter: drop-shadow(0 14px 18px rgb(11 23 54 / 12%));
+  pointer-events: none;
+}
+
 .sr-only {
   position: absolute;
   width: 1px;
