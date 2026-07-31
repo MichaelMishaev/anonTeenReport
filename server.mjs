@@ -1,11 +1,19 @@
 import { fileURLToPath } from "node:url";
+import { randomBytes, timingSafeEqual } from "node:crypto";
 import express from "express";
 import pg from "pg";
+import { containsOffensiveLanguage } from "./src/domain/offensiveLanguage.js";
 
 const { Pool } = pg;
 const app = express();
 const port = Number(process.env.PORT ?? 3000);
 const databaseUrl = process.env.DATABASE_URL;
+const adminPassword = process.env.ADMIN_PASSWORD ?? "6262";
+const adminSessions = new Map();
+const loginAttempts = new Map();
+const sessionDuration = 1000 * 60 * 60 * 8;
+const maxLoginAttempts = 5;
+const loginWindow = 1000 * 60 * 15;
 
 if (!databaseUrl) {
   throw new Error("DATABASE_URL must be configured.");
@@ -117,6 +125,43 @@ function isSubmission(value) {
   );
 }
 
+function hasBlockedOffensiveLanguage(submission) {
+  return [
+    submission.liked_other,
+    submission.problem_other,
+    submission.idea_or_change,
+  ].some(containsOffensiveLanguage);
+}
+
+function readCookie(request, name) {
+  const cookies = request.headers.cookie?.split(";") ?? [];
+  const prefix = `${name}=`;
+  const cookie = cookies.find((item) => item.trim().startsWith(prefix));
+  return cookie ? decodeURIComponent(cookie.trim().slice(prefix.length)) : null;
+}
+
+function isAdminRequest(request) {
+  const token = readCookie(request, "admin_session");
+  if (!token) return false;
+  const expiresAt = adminSessions.get(token);
+  if (!expiresAt || expiresAt < Date.now()) {
+    adminSessions.delete(token);
+    return false;
+  }
+  return true;
+}
+
+function passwordsMatch(value) {
+  if (typeof value !== "string") return false;
+  const entered = Buffer.from(value);
+  const expected = Buffer.from(adminPassword);
+  return entered.length === expected.length && timingSafeEqual(entered, expected);
+}
+
+function clientKey(request) {
+  return request.ip ?? "unknown";
+}
+
 async function initializeDatabase() {
   await pool.query(`
     CREATE TABLE IF NOT EXISTS feedback_responses (
@@ -132,9 +177,13 @@ async function initializeDatabase() {
       safety_detail text,
       return_intent text NOT NULL,
       idea_or_change text,
-      completion_time_bucket text NOT NULL
+      completion_time_bucket text NOT NULL,
+      created_at timestamptz NOT NULL DEFAULT now()
     )
   `);
+  await pool.query(
+    "ALTER TABLE feedback_responses ADD COLUMN IF NOT EXISTS created_at timestamptz NOT NULL DEFAULT now()",
+  );
 }
 
 app.disable("x-powered-by");
@@ -153,6 +202,10 @@ app.post("/api/feedback", async (request, response) => {
   const submission = request.body;
   if (!isSubmission(submission)) {
     response.status(400).json({ error: "invalid_submission" });
+    return;
+  }
+  if (hasBlockedOffensiveLanguage(submission)) {
+    response.status(422).json({ error: "offensive_language" });
     return;
   }
 
@@ -189,6 +242,80 @@ app.post("/api/feedback", async (request, response) => {
   }
 
   response.status(204).end();
+});
+
+app.post("/api/admin/login", (request, response) => {
+  const key = clientKey(request);
+  const attempt = loginAttempts.get(key);
+  const now = Date.now();
+  const recentAttempt = attempt && now - attempt.startedAt < loginWindow;
+
+  if (recentAttempt && attempt.count >= maxLoginAttempts) {
+    response.status(429).json({ error: "too_many_attempts" });
+    return;
+  }
+
+  if (!passwordsMatch(request.body?.password)) {
+    loginAttempts.set(key, {
+      startedAt: recentAttempt ? attempt.startedAt : now,
+      count: recentAttempt ? attempt.count + 1 : 1,
+    });
+    response.status(401).json({ error: "invalid_password" });
+    return;
+  }
+
+  loginAttempts.delete(key);
+  const token = randomBytes(32).toString("base64url");
+  adminSessions.set(token, now + sessionDuration);
+  response.cookie("admin_session", token, {
+    httpOnly: true,
+    sameSite: "strict",
+    secure: process.env.NODE_ENV === "production",
+    maxAge: sessionDuration,
+    path: "/",
+  });
+  response.status(204).end();
+});
+
+app.get("/api/admin/results", async (request, response) => {
+  if (!isAdminRequest(request)) {
+    response.status(401).json({ error: "unauthorized" });
+    return;
+  }
+
+  try {
+    const [totalResult, overallResult, returnResult, responses] = await Promise.all([
+      pool.query("SELECT count(*)::int AS total FROM feedback_responses"),
+      pool.query(
+        "SELECT overall_experience, count(*)::int AS count FROM feedback_responses GROUP BY overall_experience",
+      ),
+      pool.query(
+        "SELECT return_intent, count(*)::int AS count FROM feedback_responses GROUP BY return_intent",
+      ),
+      pool.query(`
+        SELECT submission_id, submission_day, visit_frequency, overall_experience,
+          liked_elements, liked_other, problems, problem_other, safety,
+          safety_detail, return_intent, idea_or_change, created_at
+        FROM feedback_responses
+        ORDER BY created_at DESC
+        LIMIT 250
+      `),
+    ]);
+    const overall = Object.fromEntries(
+      overallResult.rows.map((row) => [row.overall_experience, row.count]),
+    );
+    const returns = Object.fromEntries(
+      returnResult.rows.map((row) => [row.return_intent, row.count]),
+    );
+    response.json({
+      total: Number(totalResult.rows[0].total),
+      by_overall_experience: overall,
+      by_return_intent: returns,
+      responses: responses.rows,
+    });
+  } catch {
+    response.status(503).json({ error: "results_unavailable" });
+  }
 });
 
 app.use(express.static(fileURLToPath(new URL("./dist", import.meta.url))));

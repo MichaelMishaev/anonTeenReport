@@ -7,6 +7,24 @@ import {
   validateStep,
   type SurveyDraft,
 } from "./survey";
+import {
+  containsOffensiveLanguage,
+  findOffensiveWord,
+} from "./offensiveLanguage.js";
+
+describe("offensive language detection", () => {
+  it("detects direct and spaced-out Hebrew slurs", () => {
+    expect(containsOffensiveLanguage("את זונה")).toBe(true);
+    expect(containsOffensiveLanguage("את ז ו נ ה")).toBe(true);
+    expect(findOffensiveWord("הוא מפגר")).toBe("מפגר");
+  });
+
+  it("does not match offensive fragments inside innocent words", () => {
+    expect(containsOffensiveLanguage("תזונה בריאה חשובה")).toBe(false);
+    expect(containsOffensiveLanguage("תשלום מזונות")).toBe(false);
+    expect(containsOffensiveLanguage("שלום לכולם")).toBe(false);
+  });
+});
 
 describe("toggleMultiChoice", () => {
   it("makes the none option exclusive", () => {
@@ -48,6 +66,28 @@ describe("step validation", () => {
 
   it("allows the final optional idea field to be empty", () => {
     expect(validateStep("idea", INITIAL_DRAFT)).toBeNull();
+  });
+
+  it("blocks offensive language in regular free-text answers", () => {
+    const draft: SurveyDraft = {
+      ...INITIAL_DRAFT,
+      problems: ["other"],
+      problemOther: "הוא מפגר",
+    };
+
+    expect(validateStep("problems", draft)).toBe(
+      "זיהינו מילה שעלולה לפגוע. צריך לנסח את התשובה בדרך מכבדת יותר.",
+    );
+  });
+
+  it("does not block a safety report that quotes offensive language", () => {
+    const draft: SurveyDraft = {
+      ...INITIAL_DRAFT,
+      safety: "not_safe",
+      safetyDetail: "מישהו קרא לי מפגר",
+    };
+
+    expect(validateStep("safety", draft)).toBeNull();
   });
 });
 
@@ -95,4 +135,3 @@ describe("payload construction", () => {
     expect(getCompletionTimeBucket(181_000)).toBe("over_180");
   });
 });
-

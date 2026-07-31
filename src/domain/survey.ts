@@ -1,3 +1,5 @@
+import { containsOffensiveLanguage } from "./offensiveLanguage.js";
+
 export type VisitFrequency = "once" | "multiple" | "not_yet";
 export type OverallExperience = "excellent" | "good" | "not_great" | "bad";
 export type SafetyRating = "very_safe" | "mostly_safe" | "not_very_safe" | "not_safe";
@@ -12,7 +14,13 @@ export type QuestionStep =
   | "return"
   | "idea";
 
-export type Screen = "welcome" | QuestionStep | "ineligible" | "success";
+export type Screen =
+  | "welcome"
+  | QuestionStep
+  | "ineligible"
+  | "success"
+  | "admin-login"
+  | "admin-results";
 
 export interface SurveyDraft {
   visitFrequency: VisitFrequency | null;
@@ -164,6 +172,9 @@ export function toggleMultiChoice(
 }
 
 export function validateStep(step: QuestionStep, draft: SurveyDraft): string | null {
+  const offensiveLanguageMessage =
+    "זיהינו מילה שעלולה לפגוע. צריך לנסח את התשובה בדרך מכבדת יותר.";
+
   switch (step) {
     case "visit":
       return draft.visitFrequency ? null : "צריך לבחור תשובה כדי להמשיך.";
@@ -176,6 +187,12 @@ export function validateStep(step: QuestionStep, draft: SurveyDraft): string | n
       if (draft.likedElements.includes("other") && !draft.likedOther.trim()) {
         return "צריך לכתוב מה היה הדבר האחר שאהבת.";
       }
+      if (
+        draft.likedElements.includes("other") &&
+        containsOffensiveLanguage(draft.likedOther)
+      ) {
+        return offensiveLanguageMessage;
+      }
       return null;
     case "problems":
       if (draft.problems.length === 0) {
@@ -184,13 +201,21 @@ export function validateStep(step: QuestionStep, draft: SurveyDraft): string | n
       if (draft.problems.includes("other") && !draft.problemOther.trim()) {
         return "צריך לכתוב מה היה הדבר האחר שהפריע.";
       }
+      if (
+        draft.problems.includes("other") &&
+        containsOffensiveLanguage(draft.problemOther)
+      ) {
+        return offensiveLanguageMessage;
+      }
       return null;
     case "safety":
       return draft.safety ? null : "צריך לבחור עד כמה המקום הרגיש בטוח.";
     case "return":
       return draft.returnIntent ? null : "צריך לבחור תשובה כדי להמשיך.";
     case "idea":
-      return null;
+      return containsOffensiveLanguage(draft.ideaOrChange)
+        ? offensiveLanguageMessage
+        : null;
   }
 }
 
@@ -262,4 +287,3 @@ export function isQuestionStep(screen: Screen): screen is QuestionStep {
 export function questionNumber(step: QuestionStep): number {
   return QUESTION_STEPS.indexOf(step) + 1;
 }
-

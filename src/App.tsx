@@ -1,15 +1,23 @@
 import {
   AlertCircle,
+  ArrowRight,
+  BarChart3,
   CheckCircle2,
   ChevronDown,
   ExternalLink,
+  KeyRound,
   LockKeyhole,
   MessageCircle,
+  RefreshCw,
   WifiOff,
 } from "lucide-react";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { ChoiceCard } from "./components/ChoiceCard";
-import { ProgressHeader } from "./components/ProgressHeader";
+import {
+  ProgressHeader,
+  SURVEY_SHARE_URL,
+  SurveyShareButton,
+} from "./components/ProgressHeader";
 import { TextAreaField } from "./components/TextAreaField";
 import {
   buildFeedbackPayload,
@@ -33,9 +41,46 @@ import {
   type SurveyDraft,
   type VisitFrequency,
 } from "./domain/survey";
-import { submitFeedback } from "./services/feedback";
+import {
+  getFeedbackResults,
+  loginToResults,
+  submitFeedback,
+  type FeedbackResults,
+} from "./services/feedback";
 
 const STORAGE_KEY = "anon-teen-city-feedback-draft";
+
+const OVERALL_LABELS: Record<string, string> = {
+  excellent: "מעולה",
+  good: "די טוב",
+  not_great: "לא משהו",
+  bad: "ממש לא טוב",
+};
+
+const RETURN_LABELS: Record<string, string> = {
+  definitely: "בטוח שכן",
+  maybe: "אולי",
+  no: "לא",
+};
+
+const VISIT_LABELS: Record<string, string> = {
+  once: "פעם אחת",
+  multiple: "יותר מפעם אחת",
+};
+
+const SAFETY_LABELS: Record<string, string> = {
+  very_safe: "בטוח מאוד",
+  mostly_safe: "די בטוח",
+  not_very_safe: "לא כל כך בטוח",
+  not_safe: "בכלל לא בטוח",
+};
+
+const LIKED_LABELS = Object.fromEntries(
+  LIKED_OPTIONS.map((option) => [option.id, option.label]),
+);
+const PROBLEM_LABELS = Object.fromEntries(
+  PROBLEM_OPTIONS.map((option) => [option.id, option.label]),
+);
 
 const IDEA_STARTERS = [
   {
@@ -95,6 +140,33 @@ function DeveloperCredit() {
       <strong dir="ltr">MSX</strong>
       <ExternalLink size={13} strokeWidth={2.2} aria-hidden="true" />
     </a>
+  );
+}
+
+function ResultBreakdown({
+  title,
+  values,
+  labels,
+}: {
+  title: string;
+  values: Record<string, number>;
+  labels: Record<string, string>;
+}) {
+  const entries = Object.entries(values).sort(([, first], [, second]) => second - first);
+  if (entries.length === 0) return null;
+
+  return (
+    <section className="result-breakdown" aria-label={title}>
+      <h2>{title}</h2>
+      <div className="result-breakdown__items">
+        {entries.map(([key, count]) => (
+          <div className="result-breakdown__item" key={key}>
+            <span>{labels[key] ?? key}</span>
+            <strong>{count}</strong>
+          </div>
+        ))}
+      </div>
+    </section>
   );
 }
 
@@ -205,6 +277,10 @@ export function App() {
   const [submitError, setSubmitError] = useState<ReactNode>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
+  const [adminPassword, setAdminPassword] = useState("");
+  const [adminResults, setAdminResults] = useState<FeedbackResults | null>(null);
+  const [adminError, setAdminError] = useState<string | null>(null);
+  const [isAdminBusy, setIsAdminBusy] = useState(false);
   const startedAt = useRef(Date.now());
   const submissionId = useRef<string | null>(null);
   const submittedDraftHash = useRef<string | null>(null);
@@ -255,6 +331,38 @@ export function App() {
     startedAt.current = Date.now();
     submissionId.current = null;
     submittedDraftHash.current = null;
+  }
+
+  function openAdminLogin() {
+    setAdminPassword("");
+    setAdminError(null);
+    setScreen("admin-login");
+  }
+
+  async function loadResults() {
+    setIsAdminBusy(true);
+    setAdminError(null);
+    try {
+      setAdminResults(await getFeedbackResults());
+    } catch {
+      setAdminError("לא הצלחנו לטעון את התוצאות כרגע. אפשר לנסות שוב.");
+    } finally {
+      setIsAdminBusy(false);
+    }
+  }
+
+  async function handleAdminLogin(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setIsAdminBusy(true);
+    setAdminError(null);
+    try {
+      await loginToResults(adminPassword);
+      setScreen("admin-results");
+      await loadResults();
+    } catch {
+      setAdminError("הסיסמה לא נכונה. אפשר לנסות שוב.");
+      setIsAdminBusy(false);
+    }
   }
 
   function goToNextStep(step: QuestionStep) {
@@ -569,6 +677,7 @@ export function App() {
                   maximum={500}
                   optional
                   placeholder="אפשר לכתוב כאן..."
+                  moderationMode="warn"
                 />
                 <div
                   className="feedback-notice feedback-notice--warning"
@@ -689,6 +798,104 @@ export function App() {
     }
   }
 
+  if (screen === "admin-login") {
+    return (
+      <div className="screen-frame admin-screen">
+        <header className="admin-topbar">
+          <button className="admin-back" type="button" onClick={() => setScreen("welcome")}>
+            <ArrowRight size={18} aria-hidden="true" />
+            חזרה למשוב
+          </button>
+        </header>
+        <main className="admin-login-content">
+          <div className="admin-login-icon" aria-hidden="true"><KeyRound size={27} /></div>
+          <h1 data-screen-heading tabIndex={-1}>כניסה לתוצאות</h1>
+          <p>הזינו סיסמה כדי לצפות בתשובות האנונימיות.</p>
+          <form className="admin-login-form" onSubmit={handleAdminLogin}>
+            <label htmlFor="admin-password">סיסמה</label>
+            <input
+              id="admin-password"
+              type="password"
+              inputMode="numeric"
+              autoComplete="current-password"
+              value={adminPassword}
+              onChange={(event) => setAdminPassword(event.target.value)}
+              required
+            />
+            {adminError ? <p className="admin-error" role="alert">{adminError}</p> : null}
+            <button className="primary-button" type="submit" disabled={isAdminBusy}>
+              {isAdminBusy ? "בודקים..." : "כניסה"}
+            </button>
+          </form>
+        </main>
+      </div>
+    );
+  }
+
+  if (screen === "admin-results") {
+    return (
+      <div className="screen-frame admin-screen">
+        <header className="admin-topbar admin-topbar--results">
+          <button className="admin-back" type="button" onClick={() => setScreen("welcome")}>
+            <ArrowRight size={18} aria-hidden="true" />
+            חזרה למשוב
+          </button>
+          <button className="admin-refresh" type="button" onClick={loadResults} disabled={isAdminBusy}>
+            <RefreshCw size={17} aria-hidden="true" className={isAdminBusy ? "is-spinning" : ""} />
+            רענון
+          </button>
+        </header>
+        <main className="admin-results-content">
+          <div className="admin-results-title">
+            <div className="admin-results-icon" aria-hidden="true"><BarChart3 size={27} /></div>
+            <div>
+              <h1 data-screen-heading tabIndex={-1}>תוצאות המשוב</h1>
+              <p>התשובות מוצגות ללא פרטים מזהים.</p>
+            </div>
+          </div>
+
+          {adminResults ? (
+            <>
+              <section className="results-summary" aria-label="סיכום תוצאות">
+                <div className="results-total"><span>סה״כ תשובות</span><strong>{adminResults.total}</strong></div>
+                <ResultBreakdown title="איך היה?" values={adminResults.by_overall_experience} labels={OVERALL_LABELS} />
+                <ResultBreakdown title="ביקור נוסף" values={adminResults.by_return_intent} labels={RETURN_LABELS} />
+              </section>
+              <section className="responses-section" aria-labelledby="responses-title">
+                <div className="responses-section__heading">
+                  <h2 id="responses-title">תשובות</h2>
+                  <span>{adminResults.responses.length}{adminResults.total > adminResults.responses.length ? "+" : ""}</span>
+                </div>
+                {adminResults.responses.length ? (
+                  <div className="response-list">
+                    {adminResults.responses.map((response, index) => (
+                      <details className="admin-response" key={response.submission_id}>
+                        <summary>
+                          <span>תשובה {adminResults.total - index}</span>
+                          <b>{OVERALL_LABELS[response.overall_experience] ?? response.overall_experience}</b>
+                          <time dateTime={response.created_at}>{new Intl.DateTimeFormat("he-IL", { dateStyle: "short" }).format(new Date(response.created_at))}</time>
+                        </summary>
+                        <div className="admin-response__body">
+                          <p><span>ביקורים</span>{VISIT_LABELS[response.visit_frequency] ?? response.visit_frequency}</p>
+                          <p><span>מה אהבו</span>{response.liked_elements.map((value) => LIKED_LABELS[value] ?? value).join(" · ")}{response.liked_other ? ` · ${response.liked_other}` : ""}</p>
+                          <p><span>מה הפריע</span>{response.problems.map((value) => PROBLEM_LABELS[value] ?? value).join(" · ")}{response.problem_other ? ` · ${response.problem_other}` : ""}</p>
+                          <p><span>תחושת ביטחון</span>{SAFETY_LABELS[response.safety] ?? response.safety}{response.safety_detail ? ` · ${response.safety_detail}` : ""}</p>
+                          <p><span>יגיעו שוב</span>{RETURN_LABELS[response.return_intent] ?? response.return_intent}</p>
+                          {response.idea_or_change ? <p><span>רעיון</span>{response.idea_or_change}</p> : null}
+                        </div>
+                      </details>
+                    ))}
+                  </div>
+                ) : <p className="results-empty">עדיין לא התקבלו תשובות.</p>}
+              </section>
+            </>
+          ) : null}
+          {adminError ? <div className="feedback-notice feedback-notice--error" role="alert"><AlertCircle size={20} aria-hidden="true" /><span>{adminError}</span></div> : null}
+        </main>
+      </div>
+    );
+  }
+
   if (screen === "welcome") {
     return (
       <div className="screen-frame welcome-screen">
@@ -727,6 +934,10 @@ export function App() {
             onClick={() => setScreen("visit")}
           >
             מתחילים
+          </button>
+          <button className="admin-entry" type="button" onClick={openAdminLogin}>
+            <KeyRound size={15} aria-hidden="true" />
+            כניסה לתוצאות
           </button>
           <DeveloperCredit />
         </footer>
@@ -775,6 +986,27 @@ export function App() {
             תודה על השיתוף
           </h1>
           <p>המשוב נשלח בלי השם שלך ויעזור לשפר את עיר הנוער.</p>
+          <section
+            className="share-invitation"
+            aria-labelledby="share-invitation-title"
+          >
+            <div>
+              <h2 id="share-invitation-title">
+                יש חברים שגם היו בעיר הנוער?
+              </h2>
+              <p>שלחו להם את השאלון כדי שגם הם יוכלו להשפיע.</p>
+            </div>
+            <SurveyShareButton variant="success" />
+            <a
+              className="share-url"
+              href={SURVEY_SHARE_URL}
+              target="_blank"
+              rel="noreferrer"
+              dir="ltr"
+            >
+              anon.netanya.club
+            </a>
+          </section>
           <a
             className="whatsapp-group-link"
             href="https://chat.whatsapp.com/KuBIAtFiMMOEbVMByJzywJ?mode=gi_t"

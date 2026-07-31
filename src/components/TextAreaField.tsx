@@ -1,5 +1,7 @@
+import { AlertCircle } from "lucide-react";
 import { useId, type RefObject } from "react";
 import { clampCharacters, countCharacters } from "../domain/survey";
+import { containsOffensiveLanguage } from "../domain/offensiveLanguage.js";
 
 interface TextAreaFieldProps {
   label: string;
@@ -11,6 +13,7 @@ interface TextAreaFieldProps {
   placeholder?: string;
   privacyReminder?: boolean;
   inputRef?: RefObject<HTMLTextAreaElement | null>;
+  moderationMode?: "block" | "warn";
 }
 
 export function TextAreaField({
@@ -23,9 +26,12 @@ export function TextAreaField({
   placeholder,
   privacyReminder = true,
   inputRef,
+  moderationMode = "block",
 }: TextAreaFieldProps) {
   const fieldId = useId();
   const helperId = `${fieldId}-helper`;
+  const moderationId = `${fieldId}-moderation`;
+  const hasOffensiveLanguage = containsOffensiveLanguage(value);
 
   return (
     <div className="text-field">
@@ -39,7 +45,12 @@ export function TextAreaField({
         value={value}
         rows={rows}
         placeholder={placeholder}
-        aria-describedby={helperId}
+        aria-describedby={
+          hasOffensiveLanguage ? `${helperId} ${moderationId}` : helperId
+        }
+        aria-invalid={
+          hasOffensiveLanguage && moderationMode === "block" ? true : undefined
+        }
         onChange={(event) =>
           onChange(clampCharacters(event.target.value, maximum))
         }
@@ -52,6 +63,20 @@ export function TextAreaField({
         )}
         <bdi>{countCharacters(value)}/{maximum}</bdi>
       </div>
+      {hasOffensiveLanguage ? (
+        <div
+          className="feedback-notice feedback-notice--warning"
+          id={moderationId}
+          role="status"
+        >
+          <AlertCircle size={20} aria-hidden="true" />
+          <span>
+            {moderationMode === "warn"
+              ? "זיהינו מילה שעלולה לפגוע. אם זה תיאור של מה שקרה, אפשר להמשיך; אחרת כדאי לנסח מחדש."
+              : "זיהינו מילה שעלולה לפגוע. צריך לנסח את התשובה בדרך מכבדת יותר."}
+          </span>
+        </div>
+      ) : null}
     </div>
   );
 }
