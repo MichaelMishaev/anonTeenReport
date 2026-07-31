@@ -4,6 +4,7 @@ import {
   ChevronDown,
   ExternalLink,
   LockKeyhole,
+  MessageCircle,
   WifiOff,
 } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
@@ -774,6 +775,15 @@ export function App() {
             תודה על השיתוף
           </h1>
           <p>המשוב נשלח בלי השם שלך ויעזור לשפר את עיר הנוער.</p>
+          <a
+            className="whatsapp-group-link"
+            href="https://chat.whatsapp.com/KuBIAtFiMMOEbVMByJzywJ?mode=gi_t"
+            target="_blank"
+            rel="noreferrer"
+          >
+            <MessageCircle size={20} aria-hidden="true" />
+            <span>להצטרפות לקבוצת הוואטסאפ</span>
+          </a>
         </main>
         <footer className="action-zone">
           <button className="primary-button" type="button" onClick={resetSurvey}>
