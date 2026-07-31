@@ -3,10 +3,8 @@ import {
   ArrowRight,
   BarChart3,
   CheckCircle2,
-  ChevronDown,
   ExternalLink,
   KeyRound,
-  LockKeyhole,
   MessageCircle,
   RefreshCw,
   WifiOff,
@@ -904,27 +902,7 @@ export function App() {
             <h1 data-screen-heading tabIndex={-1}>
               איך היה לך בעיר הנוער?
             </h1>
-            <p className="welcome-lead">מה היה טוב ומה כדאי לשנות?</p>
-            <p className="welcome-support">
-              לא מבקשים שם או טלפון. השאלון לוקח פחות משתי דקות.
-            </p>
           </div>
-
-          <details className="privacy-disclosure">
-            <summary>
-              <LockKeyhole size={18} aria-hidden="true" />
-              <span>איך זה אנונימי?</span>
-              <ChevronDown
-                className="privacy-disclosure__chevron"
-                size={20}
-                aria-hidden="true"
-              />
-            </summary>
-            <p>
-              הטופס לא מבקש שם, טלפון, דוא״ל, בית ספר או התחברות. בתשובות
-              הפתוחות חשוב לא לכתוב פרטים שמזהים אותך או אנשים אחרים.
-            </p>
-          </details>
         </main>
 
         <footer className="action-zone action-zone--welcome">
