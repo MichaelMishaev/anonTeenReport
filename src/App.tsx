@@ -935,6 +935,15 @@ export function App() {
           >
             מתחילים
           </button>
+          <a
+            className="whatsapp-group-link"
+            href="https://chat.whatsapp.com/KuBIAtFiMMOEbVMByJzywJ?mode=gi_t"
+            target="_blank"
+            rel="noreferrer"
+          >
+            <MessageCircle size={20} aria-hidden="true" />
+            <span>להצטרפות לקבוצת הוואטסאפ</span>
+          </a>
           <button className="admin-entry" type="button" onClick={openAdminLogin}>
             <KeyRound size={15} aria-hidden="true" />
             כניסה לתוצאות
